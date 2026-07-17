@@ -1,0 +1,11 @@
+command:
+  - "streamlit"
+  - "run"
+  - "app.py"
+
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  # Set to "0" once the Databricks queries in data.py are wired up.
+  - name: CLIENT360_MOCK
+    value: "1"
