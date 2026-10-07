@@ -27,6 +27,8 @@ CLIENTS = {
         "tier": "Platinum",
         "since": "2019-03-11",
         "coverage": "Sarah Kwan",
+        "segment": "Hedge Fund", "sub_segment": "Macro",
+        "contact": "James",
         "entities": [
             ("BH-001", "Brevan Howard Master Fund Ltd",   "Master Fund"),
             ("BH-002", "BH Digital LP",                    "Digital"),
@@ -41,6 +43,8 @@ CLIENTS = {
         "tier": "Platinum",
         "since": "2018-07-02",
         "coverage": "Marcus Vell",
+        "segment": "Prop Trading", "sub_segment": "HFT",
+        "contact": "Ravi",
         "entities": [
             ("JMP-001", "Jump Trading LLC",        "Prop"),
             ("JMP-002", "Jump Crypto Holdings LLC", "Digital"),
@@ -53,6 +57,8 @@ CLIENTS = {
         "tier": "Gold",
         "since": "2020-11-19",
         "coverage": "Marcus Vell",
+        "segment": "Market Maker", "sub_segment": "Crypto-Native",
+        "contact": "Yuki",
         "entities": [
             ("WIN-001", "Wintermute Trading Ltd",   "Prop"),
             ("WIN-002", "Wintermute Asia Pte Ltd",  "Asia"),
@@ -65,6 +71,8 @@ CLIENTS = {
         "tier": "Gold",
         "since": "2021-02-08",
         "coverage": "Sarah Kwan",
+        "segment": "Asset Manager", "sub_segment": "Digital Asset Manager",
+        "contact": "Elena",
         "entities": [
             ("GLX-001", "Galaxy Digital LP",          "Master"),
             ("GLX-002", "Galaxy Digital Trading LLC",  "Trading"),
@@ -77,12 +85,73 @@ CLIENTS = {
         "tier": "Gold",
         "since": "2019-09-30",
         "coverage": "Deepa Rao",
+        "segment": "Market Maker", "sub_segment": "TradFi Prop",
+        "contact": "Tom",
         "entities": [
             ("CMB-001", "Cumberland DRW LLC", "Prop"),
         ],
         "products": ["Spot", "Derivatives", "FX"],
         "tokens": ["BTC", "ETH", "XRP", "USDC"],
         "size": 0.7,
+    },
+    # ── Wider book (added for idea targeting: needs a universe to rank) ───────
+    # opt_pref: options structures this client favours (weights the generator).
+    "Multicoin Capital": {
+        "tier": "Gold", "since": "2020-05-12", "coverage": "Deepa Rao",
+        "segment": "Hedge Fund", "sub_segment": "Crypto Discretionary", "contact": "Kyle",
+        "entities": [("MCC-001", "Multicoin Master Fund LP", "Master Fund"),
+                     ("MCC-002", "Multicoin Venture Fund III", "Venture")],
+        "products": ["Spot", "Derivatives", "Options"],
+        "tokens": ["SOL", "ETH", "BTC", "AVAX"], "size": 0.75,
+        "opt_pref": ["Long Straddle", "Short Strangle", "Calendar", "Iron Condor"],
+    },
+    "Millennium": {
+        "tier": "Platinum", "since": "2022-03-01", "coverage": "Sarah Kwan",
+        "segment": "Hedge Fund", "sub_segment": "Multi-Strategy", "contact": "Priya",
+        "entities": [("MLN-001", "Millennium International Ltd", "Master Fund"),
+                     ("MLN-002", "Millennium Digital Pod", "Pod")],
+        "products": ["Spot", "Derivatives", "Options", "Credit"],
+        "tokens": ["BTC", "ETH", "USDC"], "size": 1.1,
+        "opt_pref": ["Calendar", "Risk Reversal", "Long Straddle"],
+    },
+    "Two Sigma": {
+        "tier": "Gold", "since": "2023-01-17", "coverage": "Marcus Vell",
+        "segment": "Hedge Fund", "sub_segment": "Quant", "contact": "Alex",
+        "entities": [("TSG-001", "Two Sigma Investments LP", "Master Fund")],
+        "products": ["Spot", "Derivatives", "FX"],
+        "tokens": ["BTC", "ETH", "SOL", "LINK"], "size": 0.9,
+    },
+    "Pantera Capital": {
+        "tier": "Silver", "since": "2021-08-23", "coverage": "Deepa Rao",
+        "segment": "Hedge Fund", "sub_segment": "Crypto Discretionary", "contact": "Joey",
+        "entities": [("PAN-001", "Pantera Liquid Token Fund", "Liquid")],
+        "products": ["Spot", "Derivatives", "Options"],
+        "tokens": ["SOL", "ETH", "ARB", "OP"], "size": 0.5,
+        "opt_pref": ["Risk Reversal", "Bull Call Spread", "Long Call"],
+    },
+    "Fidelity Digital Assets": {
+        "tier": "Gold", "since": "2022-10-04", "coverage": "Sarah Kwan",
+        "segment": "Asset Manager", "sub_segment": "Traditional AM", "contact": "Meredith",
+        "entities": [("FDA-001", "Fidelity Digital Assets Services LLC", "Custody/Trading")],
+        "products": ["Spot", "Options"],
+        "tokens": ["BTC", "ETH"], "size": 0.85,
+        "opt_pref": ["Long Call", "Bull Call Spread"],
+    },
+    "Marathon Digital": {
+        "tier": "Silver", "since": "2023-05-30", "coverage": "Marcus Vell",
+        "segment": "Corporate", "sub_segment": "Miner", "contact": "Sam",
+        "entities": [("MRA-001", "Marathon Digital Holdings Inc", "Corporate")],
+        "products": ["Spot", "Options", "Credit"],
+        "tokens": ["BTC", "USDC"], "size": 0.45,
+        "opt_pref": ["Bear Put Spread", "Short Put", "Long Call"],
+    },
+    "QCP Capital": {
+        "tier": "Gold", "since": "2020-02-14", "coverage": "Deepa Rao",
+        "segment": "Market Maker", "sub_segment": "Crypto-Native", "contact": "Darius",
+        "entities": [("QCP-001", "QCP Capital Pte Ltd", "Prop")],
+        "products": ["Spot", "Derivatives", "Options", "FX"],
+        "tokens": ["BTC", "ETH", "SOL", "USDT"], "size": 0.8,
+        "opt_pref": ["Short Strangle", "Iron Condor", "Calendar", "Long Butterfly"],
     },
 }
 
@@ -152,7 +221,7 @@ def trades(parent: str) -> pd.DataFrame:
         tok = r.choice(c["tokens"])
         side = r.choice(["Buy", "Sell"])
         notional = round(r.lognormvariate(14.6, 1.05) * c["size"], 0)
-        px = _price(tok, r)
+        px = _price_at(tok, ts, r)
         bps = _bps_for(prod, r)
         rows.append(_row(ts, eid, ename, prod, _instrument(prod, tok, r), tok, side,
                          notional, px, bps, qty=round(notional / px, 4)))
@@ -162,6 +231,11 @@ def trades(parent: str) -> pd.DataFrame:
         n_struct = int(0.5 * span * c["size"] / 7)   # ~ a few per week
         for i in range(max(6, n_struct)):
             rows.extend(_option_structure(parent, r, ents, c, i))
+
+    # Fills for pitches/RFQs the client executed in chat (see mock_chat.py), so
+    # the pitch→trade matcher in pitches.py has real blotter rows to find.
+    import mock_chat
+    rows.extend(mock_chat.fill_trades(parent))
 
     df = pd.DataFrame(rows).sort_values("trade_time", ascending=False).reset_index(drop=True)
     _HISTORY_CACHE[parent] = df
@@ -237,12 +311,14 @@ def _premium(px: float, right: str, moneyness: float, months: int) -> float:
 
 
 def _option_structure(parent, r, ents, c, i) -> list[dict]:
-    name, template = r.choice(_STRUCTURES)
+    pref = set(c.get("opt_pref", []))
+    name, template = r.choices(_STRUCTURES,
+                               weights=[4 if n in pref else 1 for n, _ in _STRUCTURES])[0]
     eid, ename, _t = r.choice(ents)
     tok = r.choice([t for t in c["tokens"] if t not in ("USDC", "USDT")] or ["BTC"])
     span = (TODAY - _history_start(c)).days
     ts = _rand_ts(r, span)
-    px = _price(tok, r)
+    px = _price_at(tok, ts, r)
     sid = f"{eid}-OPT-{i:04d}"
     contracts = round(r.uniform(50, 400) * c["size"], 0)
     tick = _tick(px)
@@ -283,7 +359,6 @@ def _forward_expiry(ts: datetime, months: int) -> date:
 # ── Desk-wide benchmark (rest of the book) ────────────────────────────────────
 def desk_benchmark(tokens: list[str], start: str, end: str) -> pd.DataFrame:
     """Desk-wide net flow per token across ALL clients (for comparison)."""
-    r = _rng("DESK", f"{start}{end}")
     rows = []
     for tok in tokens:
         rr = _rng("DESK", tok + start)
@@ -304,10 +379,76 @@ def _venue(prod: str) -> str:
             "Credit": "Lending Desk", "FX": "FX Desk"}[prod]
 
 
+BASE_PX = {"BTC": 94000, "ETH": 3200, "SOL": 165, "XRP": 0.62, "AVAX": 28,
+           "LINK": 15, "ARB": 0.85, "OP": 1.9, "USDC": 1.0, "USDT": 1.0}
+
+
 def _price(tok: str, r: random.Random) -> float:
-    px = {"BTC": 94000, "ETH": 3200, "SOL": 165, "XRP": 0.62, "AVAX": 28,
-          "LINK": 15, "ARB": 0.85, "OP": 1.9, "USDC": 1.0, "USDT": 1.0}[tok]
+    px = BASE_PX[tok]
     return round(px * r.uniform(0.97, 1.03), 2 if px < 100 else 0)
+
+
+def _price_at(tok: str, ts: datetime, r: random.Random) -> float:
+    """Execution price near that day's close (historical, not today's level)."""
+    px = close_on(tok, ts.date())
+    return round(px * r.uniform(0.995, 1.005), 2 if px >= 100 else 4)
+
+
+# ── Daily price history (market data, not client data) ────────────────────────
+# Walked BACKWARDS from today's BASE_PX so the latest close matches the rest of
+# the mock. A drift over the last ~6 months gives the pitch tracker a mix of
+# ideas that worked and ideas that didn't.
+VOLS = {"BTC": 0.50, "ETH": 0.65, "SOL": 0.80, "XRP": 0.85, "AVAX": 0.90,
+        "LINK": 0.85, "ARB": 1.00, "OP": 1.00, "USDC": 0.0, "USDT": 0.0}
+_DRIFT_180D = {"BTC": 0.16, "ETH": -0.08, "SOL": 0.30, "XRP": 0.05,
+               "AVAX": -0.15, "LINK": 0.08, "ARB": -0.25, "OP": -0.20}
+_PX_CACHE: dict = {}
+
+
+def price_history() -> pd.DataFrame:
+    """Daily close per token, ~3 years to TODAY. Columns: date, token, close.
+
+    Log price = anchor (the 180-day drift, flat before that) + a mean-reverting
+    (OU) wiggle, bridged to zero at TODAY so the last close is exactly BASE_PX.
+    Mean reversion keeps 3-year paths plausible (no $400K BTC in 2023) while
+    still moving enough over 30–60 days for pitches to win or lose."""
+    if "all" in _PX_CACHE:
+        return _PX_CACHE["all"]
+    import math
+    start = TODAY - timedelta(days=365 * 3 + 30)
+    n = (TODAY - start).days
+    kappa = 1 / 45
+    rows = []
+    for tok, base in BASE_PX.items():
+        r = random.Random(f"PX|{tok}")
+        sig = VOLS[tok] / math.sqrt(365)
+        drift = _DRIFT_180D.get(tok, 0.0)
+        dev, devs = 0.0, []
+        for _ in range(n + 1):
+            devs.append(dev)
+            dev += -kappa * dev + (r.gauss(0, sig) if sig else 0.0)
+        for i in range(n + 1):
+            left = n - i                                   # days before TODAY
+            anchor = -drift * min(1.0, left / 180)
+            x = anchor + devs[i] - devs[n] * i / n         # bridge → 0 at TODAY
+            rows.append({"date": start + timedelta(days=i), "token": tok,
+                         "close": round(base * math.exp(x), 2 if base >= 100 else 4)})
+    df = pd.DataFrame(rows)
+    _PX_CACHE["all"] = df
+    _PX_CACHE["lookup"] = {(t, d): c for t, d, c in df[["token", "date", "close"]].itertuples(index=False)}
+    return df
+
+
+def close_on(tok: str, d: date) -> float:
+    """Close on date d (or the latest date before it, clamped to the history)."""
+    price_history()
+    lk = _PX_CACHE["lookup"]
+    d = min(d, TODAY)
+    for _ in range(10):
+        if (tok, d) in lk:
+            return float(lk[(tok, d)])
+        d -= timedelta(days=1)
+    return float(BASE_PX[tok])
 
 
 # ── Current positions ─────────────────────────────────────────────────────────
@@ -338,10 +479,15 @@ def positions(parent: str) -> pd.DataFrame:
             qty = r.uniform(50, 600) * c["size"]
             mark = _price(tok, r) * r.uniform(0.02, 0.08)
             cost = mark * r.uniform(0.7, 1.3)
-            row = _pos_row("Options", _instrument("Options", tok, r), tok,
-                           direction, qty, cost, mark, r)
-            row["delta"] = round(r.uniform(-0.6, 0.6), 2)
-            row["vega_usd"] = round(qty * r.uniform(5, 30), 0)
+            spot = _price(tok, r)
+            right = r.choice(["C", "P"])
+            strike = round(spot * r.choice([0.9, 1.0, 1.1]) / _tick(spot)) * _tick(spot)
+            inst = f"{tok}-{_fmt_expiry(_forward_expiry(datetime.combine(TODAY, datetime.min.time()), 2))}-{strike:g}-{right}"
+            row = _pos_row("Options", inst, tok, direction, qty, cost, mark, r)
+            # Position delta: sign from right × side (long call/short put = +).
+            sgn = (1 if right == "C" else -1) * (1 if direction == "Long" else -1)
+            row["delta"] = round(sgn * r.uniform(0.15, 0.6), 2)
+            row["vega_usd"] = round(qty * r.uniform(5, 30), 0) * (1 if direction == "Long" else -1)
             rows.append(row)
     return pd.DataFrame(rows)
 

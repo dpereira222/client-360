@@ -4,3 +4,5 @@ __pycache__/
 .env.*
 .streamlit/secrets.toml
 .DS_Store
+notes_local.jsonl
+.pytest_cache/

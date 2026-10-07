@@ -301,6 +301,257 @@ def get_desk_benchmark(tokens: list[str], start: str, end: str) -> pd.DataFrame:
     raise NotImplementedError
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. CLIENT PROFILE + BOOK UNIVERSE
+# ─────────────────────────────────────────────────────────────────────────────
+def get_profile(parent: str) -> dict:
+    """
+    Relationship metadata for the header, peer cohorts, and targeting.
+
+    SOURCE  : Salesforce Account (tier, coverage, segment taxonomy — see
+              WHITEPAPER §12.2) joined to the entity mapping.
+    OUTPUT  : dict with keys
+        parent str, tier str, since str(ISO), coverage str (salesperson),
+        segment str, sub_segment str, contact str (main client contact),
+        products list[str] (products the client is SET UP for, from onboarding)
+    """
+    if MOCK_MODE:
+        c = mock.CLIENTS[parent]
+        return {"parent": parent, "tier": c["tier"], "since": c["since"],
+                "coverage": c["coverage"], "segment": c["segment"],
+                "sub_segment": c["sub_segment"], "contact": c.get("contact", ""),
+                "products": list(c["products"])}
+    raise NotImplementedError
+
+
+def get_book_trades(start: str, end: str) -> pd.DataFrame:
+    """
+    The unified blotter for EVERY client in [start, end] — the input to the
+    expiries dashboard, the 4:30pm daily color, and idea targeting.
+
+    SOURCE  : same UNION as get_trades, without the parent filter, plus the
+              parent_name from the entity mapping.
+    OUTPUT SCHEMA: get_trades schema + `parent` str.
+    PRIVACY : internal only. Anything shared with clients (daily color) is
+              aggregated and anonymized downstream — never these rows.
+    """
+    if MOCK_MODE:
+        frames = [get_trades(p, start, end).assign(parent=p) for p in mock.all_parents()]
+        frames = [f for f in frames if not f.empty]
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    raise NotImplementedError
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. PEER INTELLIGENCE  (anonymous — see peers.py for the privacy rules)
+# ─────────────────────────────────────────────────────────────────────────────
+def get_peer_activity(parent: str, start: str, end: str) -> pd.DataFrame:
+    """
+    Weekly activity for every OTHER client, anonymized — the cohort feed.
+
+    SOURCE  : a Databricks VIEW over the unified blotter, grouped weekly,
+              with counterparty replaced by a salted-hash peer_id and the
+              requesting client excluded. Names never leave the view.
+    OUTPUT SCHEMA:
+        peer_id str, segment str, sub_segment str, tier str,
+        week date (Monday), product str, token str,
+        notional_usd float, buy_usd float, sell_usd float,
+        trades int, revenue_usd float
+    """
+    if MOCK_MODE:
+        import mock_peers
+        return mock_peers.peer_activity(parent, start, end)
+    raise NotImplementedError
+
+
+def get_peer_strategies(parent: str, start: str, end: str) -> pd.DataFrame:
+    """
+    Weekly options-structure counts per anonymous peer (options.py run over
+    each peer's option legs inside Databricks).
+    OUTPUT SCHEMA:
+        peer_id str, segment str, sub_segment str, tier str, week date,
+        strategy str, bias str, token str, structures int, notional_usd float
+    """
+    if MOCK_MODE:
+        import mock_peers
+        return mock_peers.peer_strategies(parent, start, end)
+    raise NotImplementedError
+
+
+def get_desk_idea_uptake(exclude_parent: str | None = None) -> pd.DataFrame:
+    """
+    For each desk-wide trade idea: how many clients per segment were pitched
+    it and how many executed (pitches.match_executions run book-wide, nightly).
+    exclude_parent drops that client's own rows (peer view of "who took it").
+    OUTPUT SCHEMA:
+        desk_idea_id str, headline str, segment str, sub_segment str,
+        pitched int, executed int
+    """
+    if MOCK_MODE:
+        import mock_peers
+        return mock_peers.desk_idea_uptake(exclude_parent)
+    raise NotImplementedError
+
+
+def get_desk_flow(start: str, end: str) -> pd.DataFrame:
+    """
+    Trade-level flow for the WHOLE desk in [start, end), anonymized — the input
+    to the 4:30pm daily color. Timestamps, not dates: the color day runs
+    4:30pm ET → 4:30pm ET, so the caller passes exact UTC cut-offs.
+
+    SOURCE  : a Databricks VIEW over the unified blotter (same one as
+              get_peer_activity) at trade grain; option legs collapsed to one
+              row per structure via options.py inside Databricks. Counterparty
+              replaced by the salted-hash peer_id. Names never leave the view.
+    OUTPUT SCHEMA:
+        trade_time    datetime64 (UTC, naive)
+        peer_id str, segment str, sub_segment str, tier str,
+        product str, token str, side str ('Buy'|'Sell'),
+        notional_usd float,
+        strategy str|None, bias str|None   (options structures only)
+    PRIVACY : still internal. daily_color.py applies k-anonymity + dominance
+              before anything reaches a client-facing note.
+    """
+    if MOCK_MODE:
+        import mock_peers
+        return mock_peers.desk_flow(start, end)
+    raise NotImplementedError
+
+
+def peer_id_for(parent: str) -> str:
+    """
+    The salted-hash peer_id for one of OUR named clients — used only to EXCLUDE
+    that client's own rows from desk/peer aggregates (e.g. the per-client daily
+    color), never to re-identify anyone.
+
+    SOURCE  : same salted hash the anonymized views use, exposed as a scalar UDF
+              or a tiny parent→peer_id lookup (sales-entitled users only).
+    OUTPUT  : str, e.g. 'P-1A2B3C'
+    """
+    if MOCK_MODE:
+        import mock_peers
+        return mock_peers.peer_id(parent)
+    raise NotImplementedError
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. CLIENT CHAT  (Telegram archive — WHITEPAPER §13)
+# ─────────────────────────────────────────────────────────────────────────────
+def get_chat_messages(parent: str, start: str, end: str) -> pd.DataFrame:
+    """
+    Archived messages from the client's FalconX Telegram group(s).
+
+    SOURCE  : the Telegram bot's archive table (bot only archives; it never
+              posts). chat_id → parent via a coverage-maintained mapping.
+    OUTPUT SCHEMA:
+        chat_id int, chat_title str, msg_id int, ts datetime64,
+        sender str, sender_role str ('FalconX' | 'Client'),
+        text str, reply_to_msg_id float|NaN
+    """
+    if MOCK_MODE:
+        import mock_chat
+        return mock_chat.messages(parent, start, end)
+    raise NotImplementedError
+
+
+def get_trade_ideas(parent: str, start: str, end: str) -> pd.DataFrame:
+    """
+    Trade ideas pitched in chat + the client's verbal reaction. Produced by
+    the nightly chat_intel.extract() job (same schema it returns).
+    OUTPUT SCHEMA:
+        idea_id str, parent str, chat_id int, ts datetime64, pitched_by str,
+        kind str ('Directional'|'Relative Value'|'Options'), token str,
+        token2 str|None, direction str ('Long'|'Short'),
+        product str ('Spot'|'Derivatives'|'Options'), structure str|None,
+        legs_json str|None  (JSON list of {right, strike, side, qty_mult, expiry}),
+        entry_px float, target_px float|None, stop_px float|None,
+        size_usd float, horizon_days int, thesis str,
+        desk_idea_id str|None  (set when the idea was a desk-wide broadcast),
+        msg_id int, reaction str ('Done'|'Passed'|'Later'|'No response'),
+        reason str|None, reaction_ts datetime64|None, reaction_text str|None,
+        callback_level float|None
+    Execution is NOT in this table — pitches.py infers it from get_trades.
+    """
+    if MOCK_MODE:
+        import mock_chat
+        return mock_chat.trade_ideas(parent, start, end)
+    raise NotImplementedError
+
+
+def get_rfqs(parent: str, start: str, end: str) -> pd.DataFrame:
+    """
+    Client price requests in chat, our quote, and the outcome.
+    OUTPUT SCHEMA:
+        rfq_id str, parent str, chat_id int, ts datetime64, token str,
+        side str, qty float, notional_usd float, product str,
+        quote_bid float, quote_ask float, quoted_by str,
+        response str ('Done'|'Passed'|'No response'),
+        reason str|None ('Too wide'|'Traded away'), response_ts datetime64|None
+    """
+    if MOCK_MODE:
+        import mock_chat
+        return mock_chat.rfqs(parent, start, end)
+    raise NotImplementedError
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. MARKET DATA  (not client data)
+# ─────────────────────────────────────────────────────────────────────────────
+def get_price_history() -> pd.DataFrame:
+    """
+    Daily close per token, ~3 years — marks pitched ideas and powers the
+    daily color "big move" detection.
+    SOURCE  : the desk's market-data table (or index prices).
+    OUTPUT SCHEMA: date date, token str, close float
+    """
+    if MOCK_MODE:
+        return mock.price_history()
+    raise NotImplementedError
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. CRM NOTES  (the Pros pattern — the one WRITE path in the app)
+# ─────────────────────────────────────────────────────────────────────────────
+def get_notes(parent: str | None, start: str, end: str) -> pd.DataFrame:
+    """
+    Call / meeting notes logged by sales, newest first. parent=None returns
+    the whole book (used by idea targeting and tag analytics).
+
+    SOURCE  : a Delta table, e.g. main.client360.crm_notes, written by
+              save_note(). Optionally backfilled from Salesforce Activities.
+    OUTPUT SCHEMA:
+        note_id str, parent str, note_ts datetime64, author str,
+        meeting_type str ('Call'|'Meeting'|'Chat'|'Conference'),
+        text str, tags list[str]  (tags.tag_list(text); '-#X' = negative),
+        source str ('app'|'seed'|'salesforce')
+    """
+    if MOCK_MODE:
+        import mock_notes
+        return mock_notes.notes(parent, start, end)
+    raise NotImplementedError
+
+
+def save_note(parent: str, author: str, meeting_type: str, text: str,
+              note_ts: str | None = None) -> dict:
+    """
+    Log a note. Tags are computed here (tags.py) so every writer — the app,
+    a Slack shortcut, a Salesforce sync — gets identical tagging.
+
+    SINK    : INSERT INTO the notes Delta table (append-only; edits are new
+              rows referencing the old note_id, so history is auditable).
+    RETURNS : the stored row (schema as get_notes).
+    """
+    import tags
+    from datetime import datetime
+    row = {"parent": parent, "author": author, "meeting_type": meeting_type,
+           "text": text.strip(), "tags": tags.tag_list(text),
+           "note_ts": note_ts or datetime.now().isoformat(timespec="seconds")}
+    if MOCK_MODE:
+        import mock_notes
+        return mock_notes.save(row)
+    raise NotImplementedError
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  [DERIVED]  — pure pandas on the functions above. No new queries needed.
 # ═════════════════════════════════════════════════════════════════════════════

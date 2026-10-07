@@ -70,10 +70,14 @@ def install_template() -> None:
         margin=dict(t=28, b=28, l=8, r=8),
         hoverlabel=dict(font_family=FONT, font_size=12, bgcolor="#ffffff",
                         bordercolor=AXIS),
+        # automargin: the 8px margins above are a floor — plotly grows them to
+        # fit category labels and axis titles instead of clipping them.
         xaxis=dict(showgrid=False, zeroline=False, linecolor=AXIS,
-                   ticks="outside", tickcolor=AXIS, tickfont=dict(color=INK_MUTED)),
+                   ticks="outside", tickcolor=AXIS, tickfont=dict(color=INK_MUTED),
+                   automargin=True, title=dict(standoff=10)),
         yaxis=dict(showgrid=True, gridcolor=GRID, gridwidth=1, zeroline=False,
-                   linecolor=AXIS, tickfont=dict(color=INK_MUTED)),
+                   linecolor=AXIS, tickfont=dict(color=INK_MUTED),
+                   automargin=True, title=dict(standoff=10)),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
                     font=dict(color=INK_SECONDARY), bgcolor="rgba(0,0,0,0)"),
         title=dict(font=dict(color=INK_PRIMARY, size=15)),
@@ -84,56 +88,104 @@ def install_template() -> None:
 
 def bar_ends(fig: go.Figure, radius: int = 4) -> go.Figure:
     """Round the data-end of bars (4px) per the mark spec."""
-    fig.update_traces(marker=dict(cornerradius=radius),
+    # cliponaxis=False: outside value labels ("$737K") draw past the plot edge
+    # instead of being cut off; the right margin below gives them room.
+    fig.update_traces(marker=dict(cornerradius=radius), cliponaxis=False,
                       selector=dict(type="bar"))
+    if any(getattr(t, "textposition", None) == "outside" for t in fig.data):
+        fig.update_layout(margin=dict(r=64))
     return fig
 
 
 # ── Streamlit page CSS ────────────────────────────────────────────────────────
 PAGE_CSS = """
 <style>
-:root { --fx-ink:#0b0b0b; --fx-sub:#52514e; --fx-muted:#898781;
-        --fx-line:#e1e0d9; --fx-plane:#f9f9f7; }
+:root { --fx-ink:#0f1729; --fx-sub:#4a5468; --fx-muted:#7b8496;
+        --fx-line:#e3e6ec; --fx-plane:#f4f5f7; --fx-navy:#0f1729; --fx-accent:#2a78d6; }
 
-.block-container { padding-top: 1.6rem; padding-bottom: 3rem; max-width: 1500px; }
-
-/* KPI tiles */
-div[data-testid="stMetric"] {
-    background: #ffffff;
-    border: 1px solid var(--fx-line);
-    border-radius: 12px;
-    padding: 14px 16px 12px;
-    box-shadow: 0 1px 2px rgba(11,11,11,0.04);
-}
-div[data-testid="stMetricLabel"] p { font-size: .78rem; color: var(--fx-muted);
-    text-transform: uppercase; letter-spacing: .04em; }
-div[data-testid="stMetricValue"] { font-size: 1.55rem; font-weight: 650;
-    color: var(--fx-ink); }
-
-/* Section headers */
-h2, h3 { color: var(--fx-ink); letter-spacing: -0.01em; }
+.block-container { padding-top: 4.2rem; padding-bottom: 3rem; max-width: 1560px; }
+h1, h2, h3 { color: var(--fx-ink); letter-spacing: -0.015em; font-weight: 650; }
+h3 { font-size: 1.08rem; margin-top: .4rem; }
 hr { margin: .8rem 0 1.1rem; border-color: var(--fx-line); }
 
-/* Tabs */
-button[data-baseweb="tab"] { font-size: .95rem; font-weight: 550; }
+/* Masthead */
+.fx-mh { display:flex; justify-content:space-between; align-items:flex-end;
+    background: linear-gradient(100deg, #0f1729 0%, #18254a 70%, #1d3566 100%);
+    color:#fff; border-radius:10px; padding:16px 22px 14px; margin:0 0 14px; }
+.fx-mh-brand { font-size:.68rem; letter-spacing:.16em; color:#8fa3c8; font-weight:600; }
+.fx-mh-title { font-size:1.55rem; font-weight:650; letter-spacing:-.02em; line-height:1.25; }
+.fx-mh-sub { font-size:.84rem; color:#b9c4da; margin-top:2px; }
+.fx-mh-right { text-align:right; }
+.fx-mh-asof { font-size:.78rem; color:#b9c4da; margin-top:6px; }
+.fx-mh-badge { display:inline-block; font-size:.68rem; font-weight:650; letter-spacing:.08em;
+    text-transform:uppercase; padding:3px 9px; border-radius:4px;
+    background:rgba(110,168,255,.18); color:#bcd6ff; border:1px solid rgba(110,168,255,.35); }
+.fx-mh-demo { background:rgba(245,180,60,.15); color:#f5c674; border-color:rgba(245,180,60,.4); }
+
+/* Identity row under the masthead */
+.fx-idrow { display:flex; flex-wrap:wrap; gap:8px 28px; align-items:center; margin:0 0 12px; }
+.fx-idlabel { font-size:.68rem; color:var(--fx-muted); text-transform:uppercase;
+    letter-spacing:.08em; font-weight:600; margin-right:8px; }
+.fx-section { font-size:.7rem; color:var(--fx-muted); text-transform:uppercase;
+    letter-spacing:.1em; font-weight:650; border-bottom:1px solid var(--fx-line);
+    padding-bottom:4px; margin:14px 0 8px; }
+
+/* KPI tiles — flat strip, accent rule on top */
+div[data-testid="stMetric"] {
+    background:#fff; border:1px solid var(--fx-line); border-top:3px solid var(--fx-navy);
+    border-radius:6px; padding:10px 14px 8px; }
+div[data-testid="stMetricLabel"] p { font-size:.7rem; color:var(--fx-muted);
+    text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
+div[data-testid="stMetricValue"] { font-size:1.4rem; font-weight:650; color:var(--fx-ink);
+    font-variant-numeric: tabular-nums; }
+
+/* Tabs: top level = underlined, bold; nested = quieter pill row */
+div[data-testid="stTabs"] button[data-baseweb="tab"] p { font-size:.93rem; font-weight:600; }
+div[data-testid="stTabs"] div[data-testid="stTabs"] button[data-baseweb="tab"] p {
+    font-size:.84rem; font-weight:550; color:var(--fx-sub); }
+div[data-testid="stTabs"] div[data-testid="stTabs"] button[aria-selected="true"] p {
+    color:var(--fx-accent); }
+
+/* Top nav */
+header[data-testid="stHeader"] { background:#fff; border-bottom:1px solid var(--fx-line); }
+
+/* Sidebar */
+.fx-sb-brand { font-size:1.05rem; font-weight:700; color:#fff; letter-spacing:-.01em;
+    padding:2px 0 12px; border-bottom:1px solid #2a3554; margin-bottom:12px; }
+.fx-sb-brand span { display:block; font-size:.7rem; font-weight:600; color:#8fa3c8;
+    letter-spacing:.14em; text-transform:uppercase; margin-top:2px; }
+.fx-sb-label { font-size:.68rem; color:#8fa3c8; text-transform:uppercase;
+    letter-spacing:.1em; font-weight:650; margin:14px 0 2px; }
+.fx-sb-note { font-size:.75rem; color:#b9c4da; background:#1b2540; border:1px solid #2a3554;
+    border-left:3px solid #f5b43c; border-radius:4px; padding:8px 10px; margin-top:14px; }
+.fx-sb-note code { color:#f5c674; background:transparent; }
+
+/* Plotly toolbar only on hover */
+.js-plotly-plot .modebar-container { opacity:0; transition:opacity .15s; }
+.js-plotly-plot:hover .modebar-container { opacity:1; }
+
+/* Dataframes: tabular numerals */
+div[data-testid="stDataFrame"] { font-variant-numeric: tabular-nums; }
 
 /* Entity chips */
-.fx-chip { display:inline-block; padding:3px 10px; margin:2px 4px 2px 0;
-    border:1px solid var(--fx-line); border-radius:999px; font-size:.8rem;
+.fx-chip { display:inline-block; padding:2px 9px; margin:2px 4px 2px 0;
+    border:1px solid var(--fx-line); border-radius:4px; font-size:.78rem;
     color:var(--fx-sub); background:#fff; }
 .fx-chip-on { background:#2a78d6; color:#fff; border-color:#2a78d6; }
 
 /* Pill badges for status */
-.fx-pill { display:inline-block; padding:2px 9px; border-radius:6px;
-    font-size:.76rem; font-weight:600; }
+.fx-pill { display:inline-block; padding:1px 8px; border-radius:4px;
+    font-size:.72rem; font-weight:650; letter-spacing:.02em; }
 .fx-good     { background:#e5f5e5; color:#0a7d0a; }
 .fx-warning  { background:#fdf1d8; color:#8a5a00; }
 .fx-serious  { background:#fbe6da; color:#a24a24; }
 .fx-critical { background:#f7dede; color:#a52121; }
 
-/* Coverage matrix cells */
-.fx-cov { border-radius:8px; padding:10px 12px; text-align:center;
-    font-weight:600; font-size:.85rem; border:1px solid var(--fx-line); }
+/* Product coverage cells (compact) */
+.fx-cov { display:inline-block; border-radius:4px; padding:2px 10px; margin-right:4px;
+    font-weight:600; font-size:.78rem; border:1px solid var(--fx-line); color:#b3b8c4;
+    background:#fff; }
+.fx-cov-on { background:var(--c); border-color:var(--c); color:#fff; }
 </style>
 """
 
